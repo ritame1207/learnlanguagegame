@@ -80,6 +80,15 @@
         <input type="text" id="new-emoji" placeholder="圖示 Emoji (選填)">
         <button class="btn" id="save-btn" onclick="addWord()" style="width: 90%;">儲存至清單</button>
         <button class="btn hidden" id="cancel-edit-btn" onclick="cancelEdit()" style="width: 90%; background: var(--secondary);">取消編輯</button>
+
+<div style="margin-top: 20px; padding: 15px; border: 1px dashed var(--primary); border-radius: 8px; background: #f0f7ff;">
+    <h4>批次匯入 (格式：類別,印尼語,中文,Emoji)</h4>
+    <textarea id="bulk-input" rows="5" style="width: 90%; padding: 10px; border-radius: 8px; border: 1px solid #ccc;" placeholder="例如：&#10;動物,Anjing,狗,🐶&#10;動物,Kucing,貓,🐱"></textarea>
+    <br>
+    <button class="btn" style="background: var(--success); width: 90%;" onclick="bulkImport()">執行批次匯入</button>
+</div>
+
+<button class="btn" style="background: #00cec9; width: 90%; margin-top: 10px;" onclick="exportWords()">匯出單字清單 (備份)</button>
         
         <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
         
@@ -289,6 +298,76 @@
         document.getElementById('cancel-edit-btn').classList.add('hidden');
         document.querySelectorAll('input').forEach(i => { i.classList.remove('edit-mode'); i.value = ""; });
     }
+
+function bulkImport() {
+    const input = document.getElementById('bulk-input').value.trim();
+    if (!input) {
+        alert("請輸入資料！");
+        return;
+    }
+
+    const lines = input.split('\n');
+    let count = 0;
+
+    lines.forEach(line => {
+        // Split by comma (supports both standard and full-width commas)
+        const parts = line.split(/[,,，]/); 
+        
+        if (parts.length >= 3) {
+            const cat = parts[0].trim() || "未分類";
+            const id = parts[1].trim();
+            const zh = parts[2].trim();
+            const em = parts[3] ? parts[3].trim() : "";
+
+            if (id && zh) {
+                words.push({
+                    cat: cat,
+                    id: id,
+                    zh: zh,
+                    emoji: em,
+                    active: true
+                });
+                count++;
+            }
+        }
+    });
+
+    if (count > 0) {
+        saveData();
+        renderTable();
+        updateCategoryDropdown();
+        document.getElementById('bulk-input').value = "";
+        alert(`成功匯入 ${count} 個單字！`);
+    } else {
+        alert("格式錯誤，請確保每行至少包含：類別,印尼語,中文");
+    }
+}
+
+function exportWords() {
+    if (words.length === 0) {
+        alert("清單中沒有單字可以匯出。");
+        return;
+    }
+
+    // Convert word objects into the "Category,Indonesian,Chinese,Emoji" format
+    let exportContent = words.map(w => 
+        `${w.cat || "未分類"},${w.id},${w.zh},${w.emoji || ""}`
+    ).join('\n');
+
+    // Create a Blob and a download link
+    const blob = new Blob([exportContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    
+    a.href = url;
+    a.download = `my_word_list_${new Date().toLocaleDateString()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    
+    // Cleanup
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
 
     function renderTable() {
         const body = document.getElementById('word-list-body');
