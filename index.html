@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>語言學習挑戰 3.1</title>
+    <style>
+        :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --secondary: #6c757d; --warning: #f39c12; }
+        body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; text-align: center; background: #f0f2f5; padding: 20px; color: #333; }
+        .container { max-width: 650px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); position: relative; }
+        .hidden { display: none; }
+        .btn { padding: 12px 20px; margin: 5px; cursor: pointer; border: none; border-radius: 8px; background: var(--primary); color: white; font-weight: bold; font-size: 14px; transition: 0.2s; }
+        .btn:active { transform: scale(0.98); }
+        .btn-slow { background: var(--warning); color: #000; }
+        .btn-slow.active { background: #d35400; color: #fff; }
+        .emoji-display { font-size: 80px; margin: 15px 0; min-height: 120px; display: flex; align-items: center; justify-content: center; }
+        select, input { padding: 12px; margin: 5px; border-radius: 8px; border: 1px solid #ddd; width: 85%; font-size: 16px; }
+        #feedback-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; transition: opacity 0.2s; z-index: 10; border-radius: 15px; }
+        .correct-flash { background: rgba(40, 167, 69, 0.15); border: 8px solid var(--success); opacity: 1 !important; }
+        .wrong-flash { background: rgba(220, 53, 69, 0.15); border: 8px solid var(--danger); opacity: 1 !important; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        th, td { border: 1px solid #eee; padding: 8px; text-align: left; }
+        .row-hidden { opacity: 0.5; background: #f9f9f9; }
+        .bulk-actions { text-align: left; margin: 10px 0; padding-left: 5px; }
+        .edit-mode { border: 2px solid var(--warning) !important; background: #fffdf0; }
+        #search-box { width: 90%; margin-bottom: 10px; background: #fafafa; border: 1px dashed var(--secondary); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="feedback-overlay"></div>
+    <h1>語言學習挑戰</h1>
+    
+    <div id="lang-selection">
+        <h3>我想學習：</h3>
+        <button class="btn" onclick="setLanguage('id')">🇮🇩 印尼語 (Bahasa Indonesia)</button>
+        <button class="btn" onclick="setLanguage('zh')">🇹🇼 繁體中文 (Traditional Chinese)</button>
+    </div>
+
+    <div id="menu" class="hidden">
+        <p id="target-label" style="font-weight: bold; color: var(--primary); margin-bottom: 20px;"></p>
+        <label>選擇類別：</label><br>
+        <select id="category-filter"></select><br><br>
+        <button class="btn" onclick="startGame(1)">遊戲 1：單選題</button><br>
+        <button class="btn" onclick="startGame(2)">遊戲 2：拼字挑戰</button><br>
+        <button class="btn" style="background: #6e45e2;" onclick="toggleDictionary()">管理單字庫</button>
+        <br><br>
+        <button class="btn" style="background: var(--secondary); font-size: 11px;" onclick="resetLang()">更換學習語言</button>
+    </div>
+
+    <div id="game-area" class="hidden">
+        <div class="emoji-display" id="display-emoji">❓</div>
+        <button class="btn" style="background:#ff9f43" onclick="pronounceWord()">🔊 播放聲音</button>
+        <button id="slow-btn" class="btn btn-slow" onclick="toggleSlowMode()">🐢 慢速：關閉</button>
+        
+        <div id="game-1-options" class="hidden"></div>
+        <div id="game-2-input" class="hidden">
+            <input type="text" id="user-answer" placeholder="請輸入答案..." autocomplete="off">
+            <br>
+            <button class="btn" onclick="checkAnswer(document.getElementById('user-answer').value)">送出</button>
+            <button class="btn" style="background:var(--secondary)" onclick="giveHint()">💡 提示</button>
+        </div>
+        
+        <div style="margin-top: 25px; border-top: 1px solid #eee; padding-top: 15px;">
+            <p>剩餘單字：<span id="remaining-count">0</span></p>
+            <p>目前得分：<span id="score-val" style="color: var(--success); font-weight:bold;">0</span></p>
+            <button class="btn" style="background:var(--warning)" onclick="nextQuestion(false)">跳過 ➔</button>
+            <button class="btn" style="background:var(--secondary)" onclick="goBack()">離開遊戲</button>
+        </div>
+    </div>
+
+    <div id="dictionary" class="hidden">
+        <h3 id="dict-title">新增單字</h3>
+        <input type="text" id="new-cat" placeholder="類別 (例如：動物)">
+        <input type="text" id="new-id" placeholder="印尼語單字">
+        <input type="text" id="new-zh" placeholder="繁體中文翻譯">
+        <input type="text" id="new-emoji" placeholder="圖示 Emoji (選填)">
+        <button class="btn" id="save-btn" onclick="addWord()" style="width: 90%;">儲存至清單</button>
+        <button class="btn hidden" id="cancel-edit-btn" onclick="cancelEdit()" style="width: 90%; background: var(--secondary);">取消編輯</button>
+        
+        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+        
+        <input type="text" id="search-box" placeholder="🔍 搜尋單字、類別或圖示..." oninput="renderTable()">
+        
+        <div class="bulk-actions">
+            <button class="btn" style="background:var(--secondary); font-size: 11px; padding: 5px 10px;" onclick="bulkVisibility(true)">顯示全部</button>
+            <button class="btn" style="background:var(--secondary); font-size: 11px; padding: 5px 10px;" onclick="bulkVisibility(false)">隱藏全部</button>
+        </div>
+
+        <div style="max-height: 250px; overflow-y: auto;">
+            <table id="word-table">
+                <thead><tr><th>使用</th><th>類別</th><th>印尼語</th><th>中文</th><th>操作</th></tr></thead>
+                <tbody id="word-list-body"></tbody>
+            </table>
+        </div>
+        <br><button class="btn" onclick="toggleDictionary()">返回主選單</button>
+    </div>
+</div>
+
+<script>
+    const STORAGE_KEY = 'Learning_Language_Data_1.1';
+    // 已修正：第 155 行的全形逗號改為半形逗號
+    let words = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [
+        {cat: "方向", id: "atas", zh: "上面", emoji: "⬆️", active: true},
+        {cat: "方向", id: "bawah", zh: "下面", emoji: "⬇️", active: true},
+        {cat: "動物", id: "kucing", zh: "貓", emoji: "🐱", active: true},
+        {cat: "動物", id: "anjing", zh: "狗", emoji: "🐶", active: true},
+        {cat: "食物", id: "nasi goreng", zh: "炒飯", emoji: "🍛", active: true},
+        {cat: "食物", id: "mie goreng", zh: "炒麵", emoji: "🍝", active: true},
+        {cat: "食物", id: "bakso mie", zh: "牛肉丸麵", emoji: "🍜", active: true},
+        {cat: "食物", id: "bihun", zh: "米粉", emoji: "🍲", active: true},
+        {cat: "食物", id: "kwetiau", zh: "粿條河粉", emoji: "🥢", active: true}     
+    ];
+
+    let score = 0, currentWord = null, currentMode = 1, targetLang = 'id', isSlow = false, editIndex = -1;
+    let gamePool = [];
+
+    function setLanguage(lang) {
+        targetLang = lang;
+        document.getElementById('lang-selection').classList.add('hidden');
+        document.getElementById('menu').classList.remove('hidden');
+        document.getElementById('target-label').innerText = "正在學習：" + (lang === 'id' ? "印尼語" : "中文");
+        updateCategoryDropdown();
+    }
+
+    function updateCategoryDropdown() {
+        const filter = document.getElementById('category-filter');
+        const cats = [...new Set(words.map(w => w.cat))];
+        filter.innerHTML = '<option value="All">所有類別</option>';
+        cats.forEach(c => { if(c) filter.innerHTML += `<option value="${c}">${c}</option>`; });
+    }
+
+    function startGame(mode) {
+        const pool = getFilteredWords();
+        if (pool.length === 0) { alert("找不到可用的單字！"); return; }
+        currentMode = mode; score = 0;
+        gamePool = [...pool];
+        document.getElementById('score-val').innerText = score;
+        document.getElementById('menu').classList.add('hidden');
+        document.getElementById('game-area').classList.remove('hidden');
+        document.getElementById('game-1-options').classList.toggle('hidden', mode !== 1);
+        document.getElementById('game-2-input').classList.toggle('hidden', mode !== 2);
+        nextQuestion(false);
+    }
+
+    function getFilteredWords() {
+        const cat = document.getElementById('category-filter').value;
+        let pool = words.filter(w => w.active !== false);
+        if (cat !== "All") pool = pool.filter(w => w.cat === cat);
+        return pool;
+    }
+
+    function nextQuestion(wasCorrect) {
+        if (wasCorrect && currentWord) gamePool = gamePool.filter(w => w !== currentWord);
+        if (gamePool.length === 0) { alert("太棒了！您已完成此類別的所有單字。"); return goBack(); }
+
+        document.getElementById('remaining-count').innerText = gamePool.length;
+        let nextWord;
+        do { nextWord = gamePool[Math.floor(Math.random() * gamePool.length)]; } 
+        while (gamePool.length > 1 && nextWord === currentWord);
+        
+        currentWord = nextWord;
+        const display = document.getElementById('display-emoji');
+        if (currentWord.emoji && currentWord.emoji.trim() !== "") {
+            display.innerText = currentWord.emoji;
+            display.style.fontSize = "80px";
+        } else {
+            display.innerText = (currentMode === 2) ? "🎧" : (targetLang === 'id' ? currentWord.id : currentWord.zh);
+            display.style.fontSize = (currentMode === 2) ? "80px" : "32px";
+        }
+        document.getElementById('user-answer').value = "";
+        if (currentMode === 1) setupMultipleChoice(); else document.getElementById('user-answer').focus();
+        setTimeout(pronounceWord, 600);
+    }
+
+    function setupMultipleChoice() {
+        const optionsDiv = document.getElementById('game-1-options');
+        optionsDiv.innerHTML = "";
+        const allWords = getFilteredWords();
+        let correctText = (targetLang === 'id') ? currentWord.zh : currentWord.id;
+        let choices = new Set([correctText]);
+        while(choices.size < Math.min(4, allWords.length)) {
+            let rand = allWords[Math.floor(Math.random() * allWords.length)];
+            choices.add(targetLang === 'id' ? rand.zh : rand.id);
+        }
+        Array.from(choices).sort(() => Math.random() - 0.5).forEach(choice => {
+            const b = document.createElement('button');
+            b.className = "btn"; b.style.background = "#fff"; b.style.color = "#333"; b.style.border = "1px solid #ccc";
+            b.innerText = choice;
+            b.onclick = () => {
+                const speakLang = (targetLang === 'id') ? 'zh-TW' : 'id-ID';
+                speakSpecificText(choice, speakLang);
+                checkAnswer(choice);
+            };
+            optionsDiv.appendChild(b);
+        });
+    }
+
+    function checkAnswer(userInput) {
+        let correctAns = (targetLang === 'id') ? currentWord.id : currentWord.zh;
+        if(currentMode === 1) correctAns = (targetLang === 'id') ? currentWord.zh : currentWord.id;
+        
+        if (userInput.trim().toLowerCase() === correctAns.toLowerCase()) {
+            score++; triggerFeedback(true);
+            document.getElementById('score-val').innerText = score;
+            setTimeout(() => nextQuestion(true), 1000);
+        } else { triggerFeedback(false); }
+    }
+
+    function speakSpecificText(text, lang) {
+        const msg = new SpeechSynthesisUtterance();
+        msg.text = text; msg.lang = lang;
+        msg.rate = isSlow ? 0.5 : 1.0;
+        window.speechSynthesis.speak(msg);
+    }
+
+    function pronounceWord() {
+        const lang = (targetLang === 'id') ? 'id-ID' : 'zh-TW';
+        const text = (targetLang === 'id') ? currentWord.id : currentWord.zh;
+        speakSpecificText(text, lang);
+    }
+
+    function triggerFeedback(isCorrect) {
+        const overlay = document.getElementById('feedback-overlay');
+        overlay.className = isCorrect ? 'correct-flash' : 'wrong-flash';
+        setTimeout(() => { overlay.className = ''; }, 300);
+    }
+
+    function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(words)); }
+    function goBack() { document.getElementById('menu').classList.remove('hidden'); document.getElementById('game-area').classList.add('hidden'); }
+    function toggleDictionary() { cancelEdit(); document.getElementById('dictionary').classList.toggle('hidden'); document.getElementById('menu').classList.toggle('hidden'); renderTable(); }
+    function resetLang() { document.getElementById('lang-selection').classList.remove('hidden'); document.getElementById('menu').classList.add('hidden'); }
+    function toggleSlowMode() { isSlow = !isSlow; const btn = document.getElementById('slow-btn'); btn.innerText = isSlow ? "🐢 慢速：開啟" : "🐢 慢速：關閉"; btn.classList.toggle('active', isSlow); }
+    
+    function addWord() {
+        const cat = document.getElementById('new-cat').value.trim() || "未分類";
+        const id = document.getElementById('new-id').value.trim();
+        const zh = document.getElementById('new-zh').value.trim();
+        const em = document.getElementById('new-emoji').value.trim();
+        if(!id || !zh) { alert("請填寫單字與翻譯。"); return; }
+        if (editIndex > -1) {
+            words[editIndex] = { ...words[editIndex], cat, id, zh, emoji: em };
+            cancelEdit();
+        } else {
+            words.push({cat, id, zh, emoji: em, active: true});
+        }
+        saveData(); renderTable(); updateCategoryDropdown();
+        ['new-id','new-zh','new-emoji'].forEach(i => document.getElementById(i).value = "");
+    }
+
+    function editWord(index) {
+        editIndex = index;
+        const w = words[index];
+        document.getElementById('new-cat').value = w.cat;
+        document.getElementById('new-id').value = w.id;
+        document.getElementById('new-zh').value = w.zh;
+        document.getElementById('new-emoji').value = w.emoji || "";
+        document.getElementById('dict-title').innerText = "正在編輯單字...";
+        document.getElementById('save-btn').innerText = "更新單字";
+        document.getElementById('save-btn').style.background = "var(--warning)";
+        document.getElementById('cancel-edit-btn').classList.remove('hidden');
+        document.querySelectorAll('input').forEach(i => i.classList.add('edit-mode'));
+        window.scrollTo(0,0);
+    }
+
+    function cancelEdit() {
+        editIndex = -1;
+        document.getElementById('dict-title').innerText = "新增單字";
+        document.getElementById('save-btn').innerText = "儲存至清單";
+        document.getElementById('save-btn').style.background = "var(--primary)";
+        document.getElementById('cancel-edit-btn').classList.add('hidden');
+        document.querySelectorAll('input').forEach(i => { i.classList.remove('edit-mode'); i.value = ""; });
+    }
+
+    function renderTable() {
+        const body = document.getElementById('word-list-body');
+        const searchTerm = document.getElementById('search-box').value.toLowerCase();
+        body.innerHTML = "";
+        words.forEach((w, index) => {
+            const match = w.id.toLowerCase().includes(searchTerm) || w.zh.toLowerCase().includes(searchTerm) || w.cat.toLowerCase().includes(searchTerm) || (w.emoji && w.emoji.includes(searchTerm));
+            if (!match) return;
+            const isChecked = w.active !== false ? "checked" : "";
+            const rowClass = w.active !== false ? "" : "row-hidden";
+            body.innerHTML += `<tr class="${rowClass}">
+                <td><input type="checkbox" ${isChecked} onclick="toggleVisibility(${index})"></td>
+                <td>${w.cat}</td><td>${w.id}</td><td>${w.zh}</td>
+                <td><button onclick="editWord(${index})" style="border:none; background:none; cursor:pointer;">✏️</button>
+                    <button onclick="removeWord(${index})" style="border:none; background:none; cursor:pointer;">❌</button></td></tr>`;
+        });
+    }
+
+    function toggleVisibility(index) { words[index].active = !words[index].active; saveData(); renderTable(); }
+    function bulkVisibility(status) { words.forEach(w => w.active = status); saveData(); renderTable(); }
+    function removeWord(i) { if(confirm("確定刪除？")) { words.splice(i,1); saveData(); renderTable(); } }
+    function giveHint() { let correctAns = (targetLang === 'id') ? currentWord.id : currentWord.zh; document.getElementById('user-answer').value = correctAns.charAt(0); document.getElementById('user-answer').focus(); }
+    document.getElementById('user-answer').addEventListener('keypress', (e) => { if (e.key === 'Enter') checkAnswer(document.getElementById('user-answer').value); });
+</script>
+</body>
+</html>
