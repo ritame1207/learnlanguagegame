@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>語言學習挑戰 3.1</title>
     <style>
+        .emoji-hidden { visibility: hidden; }
         :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --secondary: #6c757d; --warning: #f39c12; }
         body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; text-align: center; background: #f0f2f5; padding: 20px; color: #333; }
         .container { max-width: 650px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); position: relative; }
@@ -51,6 +52,7 @@
 
     <div id="game-area" class="hidden">
         <div class="emoji-display" id="display-emoji">❓</div>
+        <button id="emoji-toggle-btn" class="btn" style="background: #a29bfe;" onclick="toggleEmoji()">🖼️ 顯示圖片：開啟</button>
         <button class="btn" style="background:#ff9f43" onclick="pronounceWord()">🔊 播放聲音</button>
         <button id="slow-btn" class="btn btn-slow" onclick="toggleSlowMode()">🐢 慢速：關閉</button>
         
@@ -113,6 +115,7 @@
         {cat: "食物", id: "kwetiau", zh: "粿條河粉", emoji: "🥢", active: true}     
     ];
 
+    let showEmoji = true;
     let score = 0, currentWord = null, currentMode = 1, targetLang = 'id', isSlow = false, editIndex = -1;
     let gamePool = [];
 
@@ -232,7 +235,21 @@
     function toggleDictionary() { cancelEdit(); document.getElementById('dictionary').classList.toggle('hidden'); document.getElementById('menu').classList.toggle('hidden'); renderTable(); }
     function resetLang() { document.getElementById('lang-selection').classList.remove('hidden'); document.getElementById('menu').classList.add('hidden'); }
     function toggleSlowMode() { isSlow = !isSlow; const btn = document.getElementById('slow-btn'); btn.innerText = isSlow ? "🐢 慢速：開啟" : "🐢 慢速：關閉"; btn.classList.toggle('active', isSlow); }
+    function toggleEmoji() {
+    showEmoji = !showEmoji;
+    const display = document.getElementById('display-emoji');
+    const btn = document.getElementById('emoji-toggle-btn');
     
+    if (showEmoji) {
+        display.classList.remove('emoji-hidden');
+        btn.innerText = "🖼️ 顯示圖片：開啟";
+        btn.style.background = "#a29bfe";
+    } else {
+        display.classList.add('emoji-hidden');
+        btn.innerText = "🖼️ 顯示圖片：關閉";
+        btn.style.background = "#636e72";
+    }
+}
     function addWord() {
         const cat = document.getElementById('new-cat').value.trim() || "未分類";
         const id = document.getElementById('new-id').value.trim();
