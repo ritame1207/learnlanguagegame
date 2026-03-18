@@ -91,6 +91,9 @@
 <button class="btn" style="background: #00cec9; width: 90%; margin-top: 10px;" onclick="exportWords()">匯出單字清單 (備份)</button>
         
         <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+<div style="margin: 10px 0; font-weight: bold; color: var(--primary);">
+    目前總單字數：<span id="total-word-count">0</span>
+</div>
         
         <input type="text" id="search-box" placeholder="🔍 搜尋單字、類別或圖示..." oninput="renderTable()">
         
@@ -260,11 +263,21 @@
     }
 }
     function addWord() {
-        const cat = document.getElementById('new-cat').value.trim() || "未分類";
-        const id = document.getElementById('new-id').value.trim();
-        const zh = document.getElementById('new-zh').value.trim();
-        const em = document.getElementById('new-emoji').value.trim();
-        if(!id || !zh) { alert("請填寫單字與翻譯。"); return; }
+    const cat = document.getElementById('new-cat').value.trim() || "未分類";
+    const id = document.getElementById('new-id').value.trim();
+    const zh = document.getElementById('new-zh').value.trim();
+    const em = document.getElementById('new-emoji').value.trim();
+
+    if(!id || !zh) { alert("請填寫單字與翻譯。"); return; }
+
+    // Check for duplicates (only if we are adding a NEW word, not editing)
+    if (editIndex === -1) {
+        const exists = words.find(w => w.id.toLowerCase() === id.toLowerCase() && w.zh === zh);
+        if (exists) {
+            alert(`⚠️ 注意：單字「${id} / ${zh}」已經存在於清單中！`);
+            return; // Stop adding
+        }
+    }
         if (editIndex > -1) {
             words[editIndex] = { ...words[editIndex], cat, id, zh, emoji: em };
             cancelEdit();
@@ -307,12 +320,11 @@ function bulkImport() {
     }
 
     const lines = input.split('\n');
-    let count = 0;
+    let addedCount = 0;
+    let duplicateCount = 0;
 
     lines.forEach(line => {
-        // Split by comma (supports both standard and full-width commas)
         const parts = line.split(/[,,，]/); 
-        
         if (parts.length >= 3) {
             const cat = parts[0].trim() || "未分類";
             const id = parts[1].trim();
@@ -320,26 +332,38 @@ function bulkImport() {
             const em = parts[3] ? parts[3].trim() : "";
 
             if (id && zh) {
-                words.push({
-                    cat: cat,
-                    id: id,
-                    zh: zh,
-                    emoji: em,
-                    active: true
-                });
-                count++;
+                // 檢查是否重複
+                const isDuplicate = words.some(w => w.id.toLowerCase() === id.toLowerCase() && w.zh === zh);
+                
+                if (isDuplicate) {
+                    duplicateCount++;
+                } else {
+                    words.push({
+                        cat: cat,
+                        id: id,
+                        zh: zh,
+                        emoji: em,
+                        active: true
+                    });
+                    addedCount++;
+                }
             }
         }
     });
 
-    if (count > 0) {
+    if (addedCount > 0 || duplicateCount > 0) {
         saveData();
         renderTable();
         updateCategoryDropdown();
+        
+        let msg = `匯入完成！\n✅ 成功新增：${addedCount} 個單字`;
+        if (duplicateCount > 0) {
+            msg += `\n⚠️ 忽略重複：${duplicateCount} 個單字已存在`;
+        }
+        alert(msg);
         document.getElementById('bulk-input').value = "";
-        alert(`成功匯入 ${count} 個單字！`);
     } else {
-        alert("格式錯誤，請確保每行至少包含：類別,印尼語,中文");
+        alert("格式錯誤或無有效資料，請確保每行格式為：類別,印尼語,中文");
     }
 }
 
@@ -370,6 +394,7 @@ function exportWords() {
 }
 
     function renderTable() {
+document.getElementById('total-word-count').innerText = words.length;
         const body = document.getElementById('word-list-body');
         const searchTerm = document.getElementById('search-box').value.toLowerCase();
         body.innerHTML = "";
