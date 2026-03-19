@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>語言學習挑戰 3.1</title>
+    <title>語言學習挑戰 3.2 - 智慧提示版</title>
     <style>
         .emoji-hidden { visibility: hidden; }
         :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --secondary: #6c757d; --warning: #f39c12; }
@@ -118,7 +118,6 @@
 </div>
 <script>
     const STORAGE_KEY = 'Learning_Language_Data_1.1';
-    // 已修正：第 155 行的全形逗號改為半形逗號
     let words = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [
         {cat: "方向", id: "atas", zh: "上面", emoji: "⬆️", active: true},
         {cat: "方向", id: "bawah", zh: "下面", emoji: "⬇️", active: true},
@@ -134,6 +133,7 @@
     let showEmoji = true;
     let score = 0, currentWord = null, currentMode = 1, targetLang = 'id', isSlow = false, editIndex = -1;
     let gamePool = [];
+    let currentHintLevel = 0; // 新增：用於追蹤提示進度
 
     function setLanguage(lang) {
         targetLang = lang;
@@ -155,6 +155,7 @@
         if (pool.length === 0) { alert("找不到可用的單字！"); return; }
         currentMode = mode; score = 0;
         gamePool = [...pool];
+        currentHintLevel = 0; // 遊戲開始時重置提示
         document.getElementById('score-val').innerText = score;
         document.getElementById('menu').classList.add('hidden');
         document.getElementById('game-area').classList.remove('hidden');
@@ -174,6 +175,7 @@
         if (wasCorrect && currentWord) gamePool = gamePool.filter(w => w !== currentWord);
         if (gamePool.length === 0) { alert("太棒了！您已完成此類別的所有單字。"); return goBack(); }
 
+        currentHintLevel = 0; // 切換新題目時重置提示等級
         document.getElementById('remaining-count').innerText = gamePool.length;
         let nextWord;
         do { nextWord = gamePool[Math.floor(Math.random() * gamePool.length)]; } 
@@ -181,6 +183,11 @@
         
         currentWord = nextWord;
         const display = document.getElementById('display-emoji');
+        const inputField = document.getElementById('user-answer');
+        
+        // 重置輸入框提示文字
+        inputField.placeholder = "請輸入答案...";
+        
         if (currentWord.emoji && currentWord.emoji.trim() !== "") {
             display.innerText = currentWord.emoji;
             display.style.fontSize = "80px";
@@ -216,46 +223,34 @@
         });
     }
 
+    function playTone(freq, type, duration) {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + duration);
+    }
+
     function checkAnswer(userInput) {
         let correctAns = (targetLang === 'id') ? currentWord.id : currentWord.zh;
         if(currentMode === 1) correctAns = (targetLang === 'id') ? currentWord.zh : currentWord.id;
         
         if (userInput.trim().toLowerCase() === correctAns.toLowerCase()) {
+            playTone(600, 'sine', 0.2);
             score++; triggerFeedback(true);
             document.getElementById('score-val').innerText = score;
             setTimeout(() => nextQuestion(true), 1000);
-        } else { triggerFeedback(false); }
+        } else { 
+            playTone(150, 'sawtooth', 0.3);
+            triggerFeedback(false);
+            recordError(currentWord);
+        }
     }
-// 新增音效產生器
-function playTone(freq, type, duration) {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + duration);
-}
-
-// 修改 checkAnswer 內部邏輯
-function checkAnswer(userInput) {
-    let correctAns = (targetLang === 'id') ? currentWord.id : currentWord.zh;
-    if(currentMode === 1) correctAns = (targetLang === 'id') ? currentWord.zh : currentWord.id;
-    
-    if (userInput.trim().toLowerCase() === correctAns.toLowerCase()) {
-        playTone(600, 'sine', 0.2); // 正確：清脆短音
-        score++; triggerFeedback(true);
-        document.getElementById('score-val').innerText = score;
-        setTimeout(() => nextQuestion(true), 1000);
-    } else { 
-        playTone(150, 'sawtooth', 0.3); // 錯誤：低沉重音
-        triggerFeedback(false);
-        recordError(currentWord); // 紀錄錯誤
-    }
-}
 
     function speakSpecificText(text, lang) {
         const msg = new SpeechSynthesisUtterance();
@@ -278,40 +273,35 @@ function checkAnswer(userInput) {
 
     function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(words)); }
     function goBack() { document.getElementById('menu').classList.remove('hidden'); document.getElementById('game-area').classList.add('hidden'); }
-    function toggleDictionary() { cancelEdit(); document.getElementById('dictionary').classList.toggle('hidden'); document.getElementById('menu').classList.toggle('hidden'); renderTable(); }
+    function toggleDictionary() { cancelEdit(); document.getElementById('dictionary').classList.toggle('hidden'); document.getElementById('menu').classList.toggle('hidden'); renderTable(); renderErrorLog(); }
     function resetLang() { document.getElementById('lang-selection').classList.remove('hidden'); document.getElementById('menu').classList.add('hidden'); }
     function toggleSlowMode() { isSlow = !isSlow; const btn = document.getElementById('slow-btn'); btn.innerText = isSlow ? "🐢 慢速：開啟" : "🐢 慢速：關閉"; btn.classList.toggle('active', isSlow); }
-    function toggleEmoji() {
-    showEmoji = !showEmoji;
-    const display = document.getElementById('display-emoji');
-    const btn = document.getElementById('emoji-toggle-btn');
     
-    if (showEmoji) {
-        display.classList.remove('emoji-hidden');
-        btn.innerText = "🖼️ 顯示圖片：開啟";
-        btn.style.background = "#a29bfe";
-    } else {
-        display.classList.add('emoji-hidden');
-        btn.innerText = "🖼️ 顯示圖片：關閉";
-        btn.style.background = "#636e72";
-    }
-}
-    function addWord() {
-    const cat = document.getElementById('new-cat').value.trim() || "未分類";
-    const id = document.getElementById('new-id').value.trim();
-    const zh = document.getElementById('new-zh').value.trim();
-    const em = document.getElementById('new-emoji').value.trim();
-
-    if(!id || !zh) { alert("請填寫單字與翻譯。"); return; }
-
-    // Check for duplicates (only if we are adding a NEW word, not editing)
-    if (editIndex === -1) {
-        const exists = words.find(w => w.id.toLowerCase() === id.toLowerCase() && w.zh === zh);
-        if (exists) {
-            alert(`⚠️ 注意：單字「${id} / ${zh}」已經存在於清單中！`);
-            return; // Stop adding
+    function toggleEmoji() {
+        showEmoji = !showEmoji;
+        const display = document.getElementById('display-emoji');
+        const btn = document.getElementById('emoji-toggle-btn');
+        if (showEmoji) {
+            display.classList.remove('emoji-hidden');
+            btn.innerText = "🖼️ 顯示圖片：開啟";
+            btn.style.background = "#a29bfe";
+        } else {
+            display.classList.add('emoji-hidden');
+            btn.innerText = "🖼️ 顯示圖片：關閉";
+            btn.style.background = "#636e72";
         }
     }
+
+    function addWord() {
+        const cat = document.getElementById('new-cat').value.trim() || "未分類";
+        const id = document.getElementById('new-id').value.trim();
+        const zh = document.getElementById('new-zh').value.trim();
+        const em = document.getElementById('new-emoji').value.trim();
+        if(!id || !zh) { alert("請填寫單字與翻譯。"); return; }
+        if (editIndex === -1) {
+            const exists = words.find(w => w.id.toLowerCase() === id.toLowerCase() && w.zh === zh);
+            if (exists) { alert(`⚠️ 注意：單字「${id} / ${zh}」已經存在！`); return; }
+        }
         if (editIndex > -1) {
             words[editIndex] = { ...words[editIndex], cat, id, zh, emoji: em };
             cancelEdit();
@@ -346,89 +336,44 @@ function checkAnswer(userInput) {
         document.querySelectorAll('input').forEach(i => { i.classList.remove('edit-mode'); i.value = ""; });
     }
 
-function bulkImport() {
-    const input = document.getElementById('bulk-input').value.trim();
-    if (!input) {
-        alert("請輸入資料！");
-        return;
-    }
-
-    const lines = input.split('\n');
-    let addedCount = 0;
-    let duplicateCount = 0;
-
-    lines.forEach(line => {
-        const parts = line.split(/[,,，]/); 
-        if (parts.length >= 3) {
-            const cat = parts[0].trim() || "未分類";
-            const id = parts[1].trim();
-            const zh = parts[2].trim();
-            const em = parts[3] ? parts[3].trim() : "";
-
-            if (id && zh) {
-                // 檢查是否重複
-                const isDuplicate = words.some(w => w.id.toLowerCase() === id.toLowerCase() && w.zh === zh);
-                
-                if (isDuplicate) {
-                    duplicateCount++;
-                } else {
-                    words.push({
-                        cat: cat,
-                        id: id,
-                        zh: zh,
-                        emoji: em,
-                        active: true
-                    });
-                    addedCount++;
+    function bulkImport() {
+        const input = document.getElementById('bulk-input').value.trim();
+        if (!input) { alert("請輸入資料！"); return; }
+        const lines = input.split('\n');
+        let addedCount = 0; let duplicateCount = 0;
+        lines.forEach(line => {
+            const parts = line.split(/[,,，]/); 
+            if (parts.length >= 3) {
+                const cat = parts[0].trim() || "未分類";
+                const id = parts[1].trim(); const zh = parts[2].trim();
+                const em = parts[3] ? parts[3].trim() : "";
+                if (id && zh) {
+                    const isDuplicate = words.some(w => w.id.toLowerCase() === id.toLowerCase() && w.zh === zh);
+                    if (isDuplicate) duplicateCount++;
+                    else { words.push({cat, id, zh, emoji: em, active: true}); addedCount++; }
                 }
             }
+        });
+        if (addedCount > 0 || duplicateCount > 0) {
+            saveData(); renderTable(); updateCategoryDropdown();
+            alert(`匯入完成！\n✅ 新增：${addedCount}\n⚠️ 忽略重複：${duplicateCount}`);
+            document.getElementById('bulk-input').value = "";
         }
-    });
-
-    if (addedCount > 0 || duplicateCount > 0) {
-        saveData();
-        renderTable();
-        updateCategoryDropdown();
-        
-        let msg = `匯入完成！\n✅ 成功新增：${addedCount} 個單字`;
-        if (duplicateCount > 0) {
-            msg += `\n⚠️ 忽略重複：${duplicateCount} 個單字已存在`;
-        }
-        alert(msg);
-        document.getElementById('bulk-input').value = "";
-    } else {
-        alert("格式錯誤或無有效資料，請確保每行格式為：類別,印尼語,中文");
-    }
-}
-
-function exportWords() {
-    if (words.length === 0) {
-        alert("清單中沒有單字可以匯出。");
-        return;
     }
 
-    // Convert word objects into the "Category,Indonesian,Chinese,Emoji" format
-    let exportContent = words.map(w => 
-        `${w.cat || "未分類"},${w.id},${w.zh},${w.emoji || ""}`
-    ).join('\n');
-
-    // Create a Blob and a download link
-    const blob = new Blob([exportContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    
-    a.href = url;
-    a.download = `my_word_list_${new Date().toLocaleDateString()}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    
-    // Cleanup
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-}
+    function exportWords() {
+        if (words.length === 0) { alert("清單中沒有單字。"); return; }
+        let exportContent = words.map(w => `${w.cat || "未分類"},${w.id},${w.zh},${w.emoji || ""}`).join('\n');
+        const blob = new Blob([exportContent], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `my_word_list_${new Date().toLocaleDateString()}.txt`;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
+    }
 
     function renderTable() {
-document.getElementById('total-word-count').innerText = words.length;
+        document.getElementById('total-word-count').innerText = words.length;
         const body = document.getElementById('word-list-body');
         const searchTerm = document.getElementById('search-box').value.toLowerCase();
         body.innerHTML = "";
@@ -448,57 +393,45 @@ document.getElementById('total-word-count').innerText = words.length;
     function toggleVisibility(index) { words[index].active = !words[index].active; saveData(); renderTable(); }
     function bulkVisibility(status) { words.forEach(w => w.active = status); saveData(); renderTable(); }
     function removeWord(i) { if(confirm("確定刪除？")) { words.splice(i,1); saveData(); renderTable(); } }
+
+    // --- 關鍵修改：遞增式提示功能 ---
     function giveHint() { 
-    let correctAns = (targetLang === 'id') ? currentWord.id : currentWord.zh; 
-    let hint = correctAns.charAt(0) + " " + "_ ".repeat(correctAns.length - 1);
-    document.getElementById('user-answer').placeholder = "提示：" + hint.trim();
-    document.getElementById('user-answer').focus(); 
-}
-let errorLog = JSON.parse(localStorage.getItem('Error_Log_Data')) || [];
+        const inputField = document.getElementById('user-answer');
+        let correctAns = (targetLang === 'id') ? currentWord.id : currentWord.zh; 
+        
+        // 點擊次數限制在單字長度內
+        if (currentHintLevel < correctAns.length) {
+            currentHintLevel++;
+        }
 
-function recordError(word) {
-    // 避免重複紀錄同一個字
-    if (!errorLog.find(e => e.id === word.id)) {
-        errorLog.push(word);
-        saveErrors();
-        renderErrorLog();
+        let hintArray = correctAns.split('').map((char, index) => {
+            if (index < currentHintLevel) return char; // 顯示解鎖字
+            if (char === ' ') return ' ';             // 保留空格
+            return '_';                              // 隱藏其餘
+        });
+
+        let totalLen = correctAns.replace(/\s/g, '').length; // 不計空格的純字數
+        let hintDisplay = hintArray.join(' ');
+        
+        inputField.placeholder = `提示 [${currentHintLevel}]: ${hintDisplay} (${totalLen} 字)`;
+        inputField.focus(); 
     }
-}
 
-function saveErrors() { localStorage.setItem('Error_Log_Data', JSON.stringify(errorLog)); }
-
-function renderErrorLog() {
-    const container = document.getElementById('error-list');
-    container.innerHTML = errorLog.map((e, index) => 
-        `<span style="display:inline-block; background:#ffeaea; margin:2px; padding:3px 8px; border-radius:5px; cursor:pointer;" onclick="removeError(${index})">
-            ${e.emoji || ''} ${e.id} (${e.zh}) ✕
-        </span>`
-    ).join('');
-}
-
-function removeError(index) {
-    errorLog.splice(index, 1);
-    saveErrors();
-    renderErrorLog();
-}
-
-function clearErrors() {
-    if(confirm("確定要清空所有錯誤紀錄嗎？")) {
-        errorLog = [];
-        saveErrors();
-        renderErrorLog();
+    let errorLog = JSON.parse(localStorage.getItem('Error_Log_Data')) || [];
+    function recordError(word) {
+        if (!errorLog.find(e => e.id === word.id)) { errorLog.push(word); saveErrors(); renderErrorLog(); }
     }
-}
-
-// 在 toggleDictionary 函式中加入呼叫
-// 修改約 255 行：
-function toggleDictionary() { 
-    cancelEdit(); 
-    document.getElementById('dictionary').classList.toggle('hidden'); 
-    document.getElementById('menu').classList.toggle('hidden'); 
-    renderTable(); 
-    renderErrorLog(); // 初始化錯誤清單
-}
+    function saveErrors() { localStorage.setItem('Error_Log_Data', JSON.stringify(errorLog)); }
+    function renderErrorLog() {
+        const container = document.getElementById('error-list');
+        container.innerHTML = errorLog.map((e, index) => 
+            `<span style="display:inline-block; background:#ffeaea; margin:2px; padding:3px 8px; border-radius:5px; cursor:pointer;" onclick="removeError(${index})">
+                ${e.emoji || ''} ${e.id} (${e.zh}) ✕
+            </span>`
+        ).join('');
+    }
+    function removeError(index) { errorLog.splice(index, 1); saveErrors(); renderErrorLog(); }
+    function clearErrors() { if(confirm("清空紀錄？")) { errorLog = []; saveErrors(); renderErrorLog(); } }
 </script>
 </body>
 </html>
