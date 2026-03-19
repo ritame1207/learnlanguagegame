@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>語言學習挑戰 3.2 - 智慧提示版</title>
+    <title>語言學習挑戰 3.3 - 固定底線提示版</title>
     <style>
         .emoji-hidden { visibility: hidden; }
         :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --secondary: #6c757d; --warning: #f39c12; }
@@ -14,7 +14,9 @@
         .btn:active { transform: scale(0.98); }
         .btn-slow { background: var(--warning); color: #000; }
         .btn-slow.active { background: #d35400; color: #fff; }
-        .emoji-display { font-size: 80px; margin: 15px 0; min-height: 120px; display: flex; align-items: center; justify-content: center; }
+        .emoji-display { font-size: 80px; margin: 15px 0; min-height: 100px; display: flex; align-items: center; justify-content: center; }
+        /* 新增底線顯示樣式 */
+        #word-underline-display { font-size: 26px; letter-spacing: 5px; margin: 10px 0 20px 0; font-family: 'Courier New', monospace; font-weight: bold; color: var(--secondary); min-height: 40px; }
         select, input { padding: 12px; margin: 5px; border-radius: 8px; border: 1px solid #ddd; width: 85%; font-size: 16px; }
         #feedback-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; transition: opacity 0.2s; z-index: 10; border-radius: 15px; }
         .correct-flash { background: rgba(40, 167, 69, 0.15); border: 8px solid var(--success); opacity: 1 !important; }
@@ -52,6 +54,9 @@
 
     <div id="game-area" class="hidden">
         <div class="emoji-display" id="display-emoji">❓</div>
+        
+        <div id="word-underline-display"></div>
+
         <button id="emoji-toggle-btn" class="btn" style="background: #a29bfe;" onclick="toggleEmoji()">🖼️ 顯示圖片：開啟</button>
         <button class="btn" style="background:#ff9f43" onclick="pronounceWord()">🔊 播放聲音</button>
         <button id="slow-btn" class="btn btn-slow" onclick="toggleSlowMode()">🐢 慢速：關閉</button>
@@ -133,7 +138,7 @@
     let showEmoji = true;
     let score = 0, currentWord = null, currentMode = 1, targetLang = 'id', isSlow = false, editIndex = -1;
     let gamePool = [];
-    let currentHintLevel = 0; // 新增：用於追蹤提示進度
+    let currentHintLevel = 0; // 追蹤提示次數
 
     function setLanguage(lang) {
         targetLang = lang;
@@ -155,7 +160,7 @@
         if (pool.length === 0) { alert("找不到可用的單字！"); return; }
         currentMode = mode; score = 0;
         gamePool = [...pool];
-        currentHintLevel = 0; // 遊戲開始時重置提示
+        currentHintLevel = 0;
         document.getElementById('score-val').innerText = score;
         document.getElementById('menu').classList.add('hidden');
         document.getElementById('game-area').classList.remove('hidden');
@@ -171,21 +176,37 @@
         return pool;
     }
 
+    // 更新底線顯示核心邏輯
+    function updateUnderlineDisplay() {
+        const underlineDiv = document.getElementById('word-underline-display');
+        if (currentMode !== 2) { underlineDiv.innerText = ""; return; }
+
+        let correctAns = (targetLang === 'id') ? currentWord.id : currentWord.zh;
+        let displayArray = correctAns.split('').map((char, index) => {
+            if (index < currentHintLevel) return char; // 提示次數內的字顯示出來
+            if (char === ' ') return ' ';             // 保留空格
+            return '_';                              // 其餘顯示底線
+        });
+
+        let cleanLen = correctAns.replace(/\s/g, '').length;
+        underlineDiv.innerText = displayArray.join(' ') + ` (${cleanLen} 字)`;
+    }
+
     function nextQuestion(wasCorrect) {
         if (wasCorrect && currentWord) gamePool = gamePool.filter(w => w !== currentWord);
         if (gamePool.length === 0) { alert("太棒了！您已完成此類別的所有單字。"); return goBack(); }
 
-        currentHintLevel = 0; // 切換新題目時重置提示等級
+        currentHintLevel = 0;
         document.getElementById('remaining-count').innerText = gamePool.length;
         let nextWord;
         do { nextWord = gamePool[Math.floor(Math.random() * gamePool.length)]; } 
         while (gamePool.length > 1 && nextWord === currentWord);
         
         currentWord = nextWord;
+        updateUnderlineDisplay(); // 初始化新題目底線
+
         const display = document.getElementById('display-emoji');
         const inputField = document.getElementById('user-answer');
-        
-        // 重置輸入框提示文字
         inputField.placeholder = "請輸入答案...";
         
         if (currentWord.emoji && currentWord.emoji.trim() !== "") {
@@ -252,6 +273,15 @@
         }
     }
 
+    function giveHint() { 
+        let correctAns = (targetLang === 'id') ? currentWord.id : currentWord.zh; 
+        if (currentHintLevel < correctAns.length) {
+            currentHintLevel++;
+            updateUnderlineDisplay(); // 點擊提示時更新畫面底線
+        }
+        document.getElementById('user-answer').focus(); 
+    }
+
     function speakSpecificText(text, lang) {
         const msg = new SpeechSynthesisUtterance();
         msg.text = text; msg.lang = lang;
@@ -281,15 +311,8 @@
         showEmoji = !showEmoji;
         const display = document.getElementById('display-emoji');
         const btn = document.getElementById('emoji-toggle-btn');
-        if (showEmoji) {
-            display.classList.remove('emoji-hidden');
-            btn.innerText = "🖼️ 顯示圖片：開啟";
-            btn.style.background = "#a29bfe";
-        } else {
-            display.classList.add('emoji-hidden');
-            btn.innerText = "🖼️ 顯示圖片：關閉";
-            btn.style.background = "#636e72";
-        }
+        if (showEmoji) { display.classList.remove('emoji-hidden'); btn.innerText = "🖼️ 顯示圖片：開啟"; btn.style.background = "#a29bfe"; } 
+        else { display.classList.add('emoji-hidden'); btn.innerText = "🖼️ 顯示圖片：關閉"; btn.style.background = "#636e72"; }
     }
 
     function addWord() {
@@ -298,40 +321,26 @@
         const zh = document.getElementById('new-zh').value.trim();
         const em = document.getElementById('new-emoji').value.trim();
         if(!id || !zh) { alert("請填寫單字與翻譯。"); return; }
-        if (editIndex === -1) {
-            const exists = words.find(w => w.id.toLowerCase() === id.toLowerCase() && w.zh === zh);
-            if (exists) { alert(`⚠️ 注意：單字「${id} / ${zh}」已經存在！`); return; }
-        }
-        if (editIndex > -1) {
-            words[editIndex] = { ...words[editIndex], cat, id, zh, emoji: em };
-            cancelEdit();
-        } else {
-            words.push({cat, id, zh, emoji: em, active: true});
-        }
+        if (editIndex > -1) { words[editIndex] = { ...words[editIndex], cat, id, zh, emoji: em }; cancelEdit(); } 
+        else { words.push({cat, id, zh, emoji: em, active: true}); }
         saveData(); renderTable(); updateCategoryDropdown();
         ['new-id','new-zh','new-emoji'].forEach(i => document.getElementById(i).value = "");
     }
 
     function editWord(index) {
-        editIndex = index;
-        const w = words[index];
-        document.getElementById('new-cat').value = w.cat;
-        document.getElementById('new-id').value = w.id;
-        document.getElementById('new-zh').value = w.zh;
-        document.getElementById('new-emoji').value = w.emoji || "";
+        editIndex = index; const w = words[index];
+        document.getElementById('new-cat').value = w.cat; document.getElementById('new-id').value = w.id;
+        document.getElementById('new-zh').value = w.zh; document.getElementById('new-emoji').value = w.emoji || "";
         document.getElementById('dict-title').innerText = "正在編輯單字...";
-        document.getElementById('save-btn').innerText = "更新單字";
-        document.getElementById('save-btn').style.background = "var(--warning)";
+        document.getElementById('save-btn').innerText = "更新單字"; document.getElementById('save-btn').style.background = "var(--warning)";
         document.getElementById('cancel-edit-btn').classList.remove('hidden');
         document.querySelectorAll('input').forEach(i => i.classList.add('edit-mode'));
         window.scrollTo(0,0);
     }
 
     function cancelEdit() {
-        editIndex = -1;
-        document.getElementById('dict-title').innerText = "新增單字";
-        document.getElementById('save-btn').innerText = "儲存至清單";
-        document.getElementById('save-btn').style.background = "var(--primary)";
+        editIndex = -1; document.getElementById('dict-title').innerText = "新增單字";
+        document.getElementById('save-btn').innerText = "儲存至清單"; document.getElementById('save-btn').style.background = "var(--primary)";
         document.getElementById('cancel-edit-btn').classList.add('hidden');
         document.querySelectorAll('input').forEach(i => { i.classList.remove('edit-mode'); i.value = ""; });
     }
@@ -340,98 +349,62 @@
         const input = document.getElementById('bulk-input').value.trim();
         if (!input) { alert("請輸入資料！"); return; }
         const lines = input.split('\n');
-        let addedCount = 0; let duplicateCount = 0;
+        let added = 0;
         lines.forEach(line => {
             const parts = line.split(/[,,，]/); 
             if (parts.length >= 3) {
-                const cat = parts[0].trim() || "未分類";
                 const id = parts[1].trim(); const zh = parts[2].trim();
-                const em = parts[3] ? parts[3].trim() : "";
-                if (id && zh) {
-                    const isDuplicate = words.some(w => w.id.toLowerCase() === id.toLowerCase() && w.zh === zh);
-                    if (isDuplicate) duplicateCount++;
-                    else { words.push({cat, id, zh, emoji: em, active: true}); addedCount++; }
+                if (id && zh && !words.some(w => w.id === id && w.zh === zh)) {
+                    words.push({cat: parts[0].trim() || "未分類", id, zh, emoji: parts[3] ? parts[3].trim() : "", active: true});
+                    added++;
                 }
             }
         });
-        if (addedCount > 0 || duplicateCount > 0) {
-            saveData(); renderTable(); updateCategoryDropdown();
-            alert(`匯入完成！\n✅ 新增：${addedCount}\n⚠️ 忽略重複：${duplicateCount}`);
-            document.getElementById('bulk-input').value = "";
-        }
+        saveData(); renderTable(); updateCategoryDropdown();
+        alert(`匯入完成！成功新增：${added}`);
+        document.getElementById('bulk-input').value = "";
     }
 
     function exportWords() {
-        if (words.length === 0) { alert("清單中沒有單字。"); return; }
-        let exportContent = words.map(w => `${w.cat || "未分類"},${w.id},${w.zh},${w.emoji || ""}`).join('\n');
-        const blob = new Blob([exportContent], { type: 'text/plain' });
+        let content = words.map(w => `${w.cat},${w.id},${w.zh},${w.emoji || ""}`).join('\n');
+        const blob = new Blob([content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = `my_word_list_${new Date().toLocaleDateString()}.txt`;
-        document.body.appendChild(a); a.click();
-        document.body.removeChild(a); URL.revokeObjectURL(url);
+        const a = document.createElement('a'); a.href = url; a.download = "word_list_backup.txt";
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
     }
 
     function renderTable() {
         document.getElementById('total-word-count').innerText = words.length;
         const body = document.getElementById('word-list-body');
-        const searchTerm = document.getElementById('search-box').value.toLowerCase();
+        const term = document.getElementById('search-box').value.toLowerCase();
         body.innerHTML = "";
-        words.forEach((w, index) => {
-            const match = w.id.toLowerCase().includes(searchTerm) || w.zh.toLowerCase().includes(searchTerm) || w.cat.toLowerCase().includes(searchTerm) || (w.emoji && w.emoji.includes(searchTerm));
-            if (!match) return;
-            const isChecked = w.active !== false ? "checked" : "";
-            const rowClass = w.active !== false ? "" : "row-hidden";
-            body.innerHTML += `<tr class="${rowClass}">
-                <td><input type="checkbox" ${isChecked} onclick="toggleVisibility(${index})"></td>
+        words.forEach((w, i) => {
+            if (!w.id.toLowerCase().includes(term) && !w.zh.toLowerCase().includes(term)) return;
+            const checked = w.active !== false ? "checked" : "";
+            body.innerHTML += `<tr class="${w.active !== false ? "" : "row-hidden"}">
+                <td><input type="checkbox" ${checked} onclick="toggleVisibility(${i})"></td>
                 <td>${w.cat}</td><td>${w.id}</td><td>${w.zh}</td>
-                <td><button onclick="editWord(${index})" style="border:none; background:none; cursor:pointer;">✏️</button>
-                    <button onclick="removeWord(${index})" style="border:none; background:none; cursor:pointer;">❌</button></td></tr>`;
+                <td><button onclick="editWord(${i})">✏️</button><button onclick="removeWord(${i})">❌</button></td></tr>`;
         });
     }
 
-    function toggleVisibility(index) { words[index].active = !words[index].active; saveData(); renderTable(); }
-    function bulkVisibility(status) { words.forEach(w => w.active = status); saveData(); renderTable(); }
+    function toggleVisibility(i) { words[i].active = !words[i].active; saveData(); renderTable(); }
+    function bulkVisibility(s) { words.forEach(w => w.active = s); saveData(); renderTable(); }
     function removeWord(i) { if(confirm("確定刪除？")) { words.splice(i,1); saveData(); renderTable(); } }
 
-    // --- 關鍵修改：遞增式提示功能 ---
-    function giveHint() { 
-        const inputField = document.getElementById('user-answer');
-        let correctAns = (targetLang === 'id') ? currentWord.id : currentWord.zh; 
-        
-        // 點擊次數限制在單字長度內
-        if (currentHintLevel < correctAns.length) {
-            currentHintLevel++;
-        }
-
-        let hintArray = correctAns.split('').map((char, index) => {
-            if (index < currentHintLevel) return char; // 顯示解鎖字
-            if (char === ' ') return ' ';             // 保留空格
-            return '_';                              // 隱藏其餘
-        });
-
-        let totalLen = correctAns.replace(/\s/g, '').length; // 不計空格的純字數
-        let hintDisplay = hintArray.join(' ');
-        
-        inputField.placeholder = `提示 [${currentHintLevel}]: ${hintDisplay} (${totalLen} 字)`;
-        inputField.focus(); 
-    }
-
     let errorLog = JSON.parse(localStorage.getItem('Error_Log_Data')) || [];
-    function recordError(word) {
-        if (!errorLog.find(e => e.id === word.id)) { errorLog.push(word); saveErrors(); renderErrorLog(); }
-    }
-    function saveErrors() { localStorage.setItem('Error_Log_Data', JSON.stringify(errorLog)); }
+    function recordError(w) { if (!errorLog.find(e => e.id === w.id)) { errorLog.push(w); localStorage.setItem('Error_Log_Data', JSON.stringify(errorLog)); renderErrorLog(); } }
     function renderErrorLog() {
-        const container = document.getElementById('error-list');
-        container.innerHTML = errorLog.map((e, index) => 
-            `<span style="display:inline-block; background:#ffeaea; margin:2px; padding:3px 8px; border-radius:5px; cursor:pointer;" onclick="removeError(${index})">
-                ${e.emoji || ''} ${e.id} (${e.zh}) ✕
-            </span>`
-        ).join('');
-    }
-    function removeError(index) { errorLog.splice(index, 1); saveErrors(); renderErrorLog(); }
-    function clearErrors() { if(confirm("清空紀錄？")) { errorLog = []; saveErrors(); renderErrorLog(); } }
+    const errorListDiv = document.getElementById('error-list');
+    errorListDiv.innerHTML = errorLog.map((e, i) => 
+        `<span title="點擊刪除" onclick="errorLog.splice(${i},1); localStorage.setItem('Error_Log_Data', JSON.stringify(errorLog)); renderErrorLog();">
+            <span class="error-word-id">${e.id}</span>
+            <span class="error-word-zh">(${e.zh})</span> 
+            <small style="color: #999; margin-left: 4px;">✕</small>
+        </span>`
+    ).join('');
+}
+    function clearErrors() { errorLog = []; localStorage.setItem('Error_Log_Data', "[]"); renderErrorLog(); }
 </script>
 </body>
 </html>
