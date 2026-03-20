@@ -8,7 +8,25 @@
         .emoji-hidden { visibility: hidden; }
         :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --secondary: #6c757d; --warning: #f39c12; }
         body { font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif; text-align: center; background: #f0f2f5; padding: 20px; color: #333; }
-        .container { max-width: 650px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); position: relative; }
+        .container { 
+    max-width: 650px; 
+    margin: auto; 
+    background: white; 
+    padding: 20px; /* 稍微縮小內邊距以騰出空間 */
+    border-radius: 15px; 
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+    position: relative;
+    /* 核心改動：確保內容過長時可捲動，並適應動態高度 */
+    max-height: 90dvh; 
+    overflow-y: auto; 
+}
+/* 針對小螢幕進一步壓縮間距 */
+@media (max-width: 480px) {
+    body { padding: 10px; }
+    .emoji-display { font-size: 60px; margin: 10px 0; min-height: 80px; }
+    h1 { font-size: 24px; margin: 10px 0; }
+    .btn { padding: 10px 15px; }
+}
         .hidden { display: none; }
         .btn { padding: 12px 20px; margin: 5px; cursor: pointer; border: none; border-radius: 8px; background: var(--primary); color: white; font-weight: bold; font-size: 14px; transition: 0.2s; }
         .btn:active { transform: scale(0.98); }
@@ -100,7 +118,7 @@
     目前總單字數：<span id="total-word-count">0</span>
 </div>
         
-        <input type="text" id="search-box" placeholder="🔍 搜尋單字、類別或圖示..." oninput="renderTable()">
+        <input type="text" id="search-box" placeholder="🔍 搜尋單字、類別..." oninput="renderTable()">
         
         <div class="bulk-actions">
             <button class="btn" style="background:var(--secondary); font-size: 11px; padding: 5px 10px;" onclick="bulkVisibility(true)">顯示全部</button>
@@ -405,6 +423,13 @@
     ).join('');
 }
     function clearErrors() { errorLog = []; localStorage.setItem('Error_Log_Data', "[]"); renderErrorLog(); }
+// 新增：處理行動端輸入框被遮擋的自動捲動邏輯
+document.getElementById('user-answer').addEventListener('focus', function() {
+    // 給予一點延遲，等待鍵盤完全彈出
+    setTimeout(() => {
+        this.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+});
 </script>
 </body>
 </html>
