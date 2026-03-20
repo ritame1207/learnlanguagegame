@@ -117,9 +117,11 @@
 <div style="margin: 10px 0; font-weight: bold; color: var(--primary);">
     目前總單字數：<span id="total-word-count">0</span>
 </div>
+<div id="category-buttons" style="margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;"></div>
+
+<input type="text" id="search-box" placeholder="🔍 搜尋單字" oninput="renderTable()">
         
-        <input type="text" id="search-box" placeholder="🔍 搜尋單字、類別..." oninput="renderTable()">
-        
+         
         <div class="bulk-actions">
             <button class="btn" style="background:var(--secondary); font-size: 11px; padding: 5px 10px;" onclick="bulkVisibility(true)">顯示全部</button>
             <button class="btn" style="background:var(--secondary); font-size: 11px; padding: 5px 10px;" onclick="bulkVisibility(false)">隱藏全部</button>
@@ -392,19 +394,49 @@
     }
 
     function renderTable() {
-        document.getElementById('total-word-count').innerText = words.length;
-        const body = document.getElementById('word-list-body');
-        const term = document.getElementById('search-box').value.toLowerCase();
-        body.innerHTML = "";
-        words.forEach((w, i) => {
-            if (!w.id.toLowerCase().includes(term) && !w.zh.toLowerCase().includes(term)) return;
-            const checked = w.active !== false ? "checked" : "";
-            body.innerHTML += `<tr class="${w.active !== false ? "" : "row-hidden"}">
-                <td><input type="checkbox" ${checked} onclick="toggleVisibility(${i})"></td>
-                <td>${w.cat}</td><td>${w.id}</td><td>${w.zh}</td>
-                <td><button onclick="editWord(${i})">✏️</button><button onclick="removeWord(${i})">❌</button></td></tr>`;
-        });
-    }
+    document.getElementById('total-word-count').innerText = words.length;
+    const body = document.getElementById('word-list-body');
+    const term = document.getElementById('search-box').value.toLowerCase();
+    
+    // 更新類別按鈕
+    updateCategoryButtons();
+    
+    body.innerHTML = "";
+    words.forEach((w, i) => {
+        // 修正：支援類別搜尋
+        const matchesTerm = 
+            w.id.toLowerCase().includes(term) || 
+            w.zh.toLowerCase().includes(term) || 
+            (w.cat && w.cat.toLowerCase().includes(term));
+
+        if (!matchesTerm) return;
+
+        const checked = w.active !== false ? "checked" : "";
+        body.innerHTML += `<tr class="${w.active !== false ? "" : "row-hidden"}">
+            <td><input type="checkbox" ${checked} onclick="toggleVisibility(${i})"></td>
+            <td>${w.cat}</td><td>${w.id}</td><td>${w.zh}</td>
+            <td><button onclick="editWord(${i})">✏️</button><button onclick="removeWord(${i})">❌</button></td></tr>`;
+    });
+}
+
+// 新增：動態產生類別按鈕
+function updateCategoryButtons() {
+    const btnContainer = document.getElementById('category-buttons');
+    const cats = [...new Set(words.map(w => w.cat || "未分類"))];
+    
+    let html = `<button class="btn" style="background:var(--secondary); font-size:11px; padding:4px 8px;" onclick="filterByCategory('')">全部</button>`;
+    cats.forEach(c => {
+        html += `<button class="btn" style="background:var(--primary); font-size:11px; padding:4px 8px;" onclick="filterByCategory('${c}')">${c}</button>`;
+    });
+    btnContainer.innerHTML = html;
+}
+
+// 新增：點擊按鈕填入搜尋框並觸發篩選
+function filterByCategory(catName) {
+    const searchBox = document.getElementById('search-box');
+    searchBox.value = catName;
+    renderTable();
+}
 
     function toggleVisibility(i) { words[i].active = !words[i].active; saveData(); renderTable(); }
     function bulkVisibility(s) { words.forEach(w => w.active = s); saveData(); renderTable(); }
